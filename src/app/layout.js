@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Информ Полис — поиск по архиву",
-  description: "Полнотекстовый поиск по архиву газеты «Информ Полис»",
+  title: "Info Polis Archive Search",
+  description: "Full-text search over the Info Polis (Buryatia) news archive",
 };
 
 // Runs before paint to avoid a light/dark flash: honors a saved preference,
@@ -20,7 +20,7 @@ const themeInitScript = `
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ru" className="h-full font-mono" suppressHydrationWarning>
+    <html lang="en" className="h-full font-mono" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

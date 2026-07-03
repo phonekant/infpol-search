@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @config "../../tailwind.config.js";
 
+/* Tailwind v4 no longer derives class-based dark mode from darkMode:"class"
+   in a JS config automatically — it must be declared explicitly here. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

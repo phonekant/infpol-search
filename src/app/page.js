@@ -69,20 +69,20 @@ export default function Home() {
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="text-lg font-semibold leading-relaxed">
-              Поиск по архиву «Информ Полис»
+              Info Polis Archive Search
             </h1>
             <p className="text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
               {articles
-                ? `${articles.length.toLocaleString("ru-RU")} статей за 2025 год`
+                ? `${articles.length.toLocaleString("en-US")} articles from 2025`
                 : loadError
-                ? "Не удалось загрузить индекс статей"
-                : "Загрузка индекса…"}
+                ? "Couldn't load the article index"
+                : "Loading index…"}
             </p>
           </div>
           <button
             onClick={toggleDark}
             className="shrink-0 text-lg leading-relaxed px-3 py-1 rounded border border-neutral-400/40 hover:bg-black/5 dark:hover:bg-white/5"
-            aria-label="Переключить тему"
+            aria-label="Toggle theme"
           >
             {dark ? "☀︎" : "☾"}
           </button>
@@ -94,21 +94,21 @@ export default function Home() {
             rows={1}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="шаман, буддизм, Тэнгэри, врачи, экология..."
+            placeholder="shaman, buddhism, Tengeri, doctors, environment..."
             className="w-full h-full bg-transparent outline-none resize-none p-4 text-lg leading-relaxed text-gray-900 dark:text-gray-100 caret-blue-600 dark:caret-blue-400 placeholder:text-neutral-500 dark:placeholder:text-neutral-400"
           />
         </div>
 
         {query && articles && (
           <p className="text-lg leading-relaxed text-neutral-500 dark:text-neutral-400 mb-4">
-            Найдено: {results.length}
-            {totalPages > 1 ? ` (стр. ${page} из ${totalPages})` : ""}
+            Found: {results.length}
+            {totalPages > 1 ? ` (page ${page} of ${totalPages})` : ""}
           </p>
         )}
 
         {query && articles && results.length === 0 && (
           <p className="text-lg leading-relaxed text-neutral-500 dark:text-neutral-400">
-            Ничего не найдено по запросу «{query}».
+            No results for “{query}”.
           </p>
         )}
 
@@ -138,7 +138,7 @@ export default function Home() {
                 onClick={() => setPage((p) => p - 1)}
                 className="px-3 py-1 rounded border border-neutral-400/40 hover:bg-black/5 dark:hover:bg-white/5"
               >
-                ← Назад
+                ← Previous
               </button>
             )}
             {page < totalPages && (
@@ -146,7 +146,7 @@ export default function Home() {
                 onClick={() => setPage((p) => p + 1)}
                 className="px-3 py-1 rounded border border-neutral-400/40 hover:bg-black/5 dark:hover:bg-white/5"
               >
-                Вперёд →
+                Next →
               </button>
             )}
           </div>
