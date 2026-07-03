@@ -1,47 +1,43 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
-const PAGE_SIZE = 20;
+import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
-  const [articles, setArticles] = useState(null);
-  const [loadError, setLoadError] = useState(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    fetch("/data/articles.json")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(setArticles)
-      .catch((e) => setLoadError(String(e)));
-  }, []);
-
-  const tokens = useMemo(
-    () =>
-      query
-        .toLowerCase()
-        .split(/\s+/)
-        .map((t) => t.trim())
-        .filter(Boolean),
-    [query]
-  );
-
-  const results = useMemo(() => {
-    if (!articles || tokens.length === 0) return [];
-    return articles.filter((a) => tokens.every((t) => a.text.includes(t)));
-  }, [articles, tokens]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     setPage(1);
   }, [query]);
 
-  const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
-  const shown = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => {
+    if (!query.trim()) {
+      setData(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(query)}&page=${page}`)
+        .then((r) => r.json())
+        .then((json) => {
+          if (json.error) throw new Error(json.error);
+          setData(json);
+        })
+        .catch((e) => setError(String(e)))
+        .finally(() => setLoading(false));
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, page]);
+
+  const results = data?.results || [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 0;
 
   return (
     <div className="flex-1 w-full">
@@ -51,17 +47,12 @@ export default function Home() {
             Info Polis Archive Search
           </h1>
           <p className="text-lg leading-relaxed text-neutral-400">
-            {articles
-              ? `${articles.length.toLocaleString("en-US")} articles from 2025`
-              : loadError
-              ? "Couldn't load the article index"
-              : "Loading index…"}
+            Full-text search over the Info Polis news archive
           </p>
         </div>
 
         <div className="rounded-lg border border-neutral-400/30 bg-white/[0.03] focus-within:border-blue-500/60 mb-6">
           <textarea
-            ref={inputRef}
             rows={1}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -70,21 +61,29 @@ export default function Home() {
           />
         </div>
 
-        {query && articles && (
+        {query && loading && (
+          <p className="text-lg leading-relaxed text-neutral-400 mb-4">Searching…</p>
+        )}
+
+        {query && error && (
+          <p className="text-lg leading-relaxed text-red-400 mb-4">{error}</p>
+        )}
+
+        {query && !loading && !error && data && (
           <p className="text-lg leading-relaxed text-neutral-400 mb-4">
-            Found: {results.length}
+            Found: {total}
             {totalPages > 1 ? ` (page ${page} of ${totalPages})` : ""}
           </p>
         )}
 
-        {query && articles && results.length === 0 && (
+        {query && !loading && !error && data && total === 0 && (
           <p className="text-lg leading-relaxed text-neutral-400">
             No results for “{query}”.
           </p>
         )}
 
         <div className="flex flex-col gap-4">
-          {shown.map((a) => (
+          {results.map((a) => (
             <a
               key={a.id}
               href={a.url}
@@ -95,7 +94,7 @@ export default function Home() {
               <div className="font-semibold">{a.title}</div>
               <div className="text-neutral-400 text-base">
                 {a.date}
-                {a.tags.length > 0 ? ` · ${a.tags.join(", ")}` : ""}
+                {a.tags && a.tags.length > 0 ? ` · ${a.tags.join(", ")}` : ""}
               </div>
               <div className="mt-1">{a.snippet}</div>
             </a>
