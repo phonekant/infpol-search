@@ -1,4 +1,11 @@
-import { createClient } from "@libsql/client";
+// Use Turso's dedicated serverless driver (plain fetch, zero native deps)
+// instead of @libsql/client. On Vercel Functions, @libsql/client negotiates
+// a WebSocket/hrana connection per invocation, which added several seconds
+// of overhead per request in production even though the query itself is
+// fast. @tursodatabase/serverless is what Turso recommends specifically for
+// serverless/edge deployments, exposed here via its @libsql/client-compatible
+// createClient() so the rest of this file didn't need to change.
+import { createClient } from "@tursodatabase/serverless/compat";
 
 const PAGE_SIZE = 20;
 // Ranking every match by bm25() before sorting gets very slow for common

@@ -11,10 +11,11 @@
     "next": "^14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@libsql/client": "^0.14.0"
+    "@tursodatabase/serverless": "^1.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "@libsql/client": "^0.14.0"
   }
 }
