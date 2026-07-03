@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Scrapes every year of the archive, one year at a time, loading each into
-# Postgres as soon as it finishes, then moves to the next year. Safe to
+# Turso as soon as it finishes, then moves to the next year. Safe to
 # leave running unattended (overnight) and safe to re-run/resume if
 # interrupted — both the scraper and this loop pick up where they left off.
 set -uo pipefail
 
 cd "$(dirname "$0")"
-: "${DATABASE_URL:?Set DATABASE_URL first, e.g. export DATABASE_URL=postgresql://...}"
+: "${TURSO_DATABASE_URL:?Set TURSO_DATABASE_URL first, e.g. export TURSO_DATABASE_URL=libsql://...}"
+: "${TURSO_AUTH_TOKEN:?Set TURSO_AUTH_TOKEN first}"
 
 START_YEAR=2000
 END_YEAR=$(date +%Y)
@@ -23,8 +24,8 @@ for YEAR in $(seq "$START_YEAR" "$END_YEAR"); do
     echo "--- $YEAR not finished yet, re-running ---"
   done
 
-  echo "=== [$(date +%H:%M:%S)] $YEAR done scraping, loading into Postgres ==="
-  python3 ../db/migrate_sqlite_to_pg.py --sqlite "infpol_$YEAR.db"
+  echo "=== [$(date +%H:%M:%S)] $YEAR done scraping, loading into Turso ==="
+  node ../db/migrate_sqlite_to_turso.mjs --sqlite "infpol_$YEAR.db"
 done
 
 echo "=== ALL YEARS DONE ($START_YEAR-$END_YEAR) ==="

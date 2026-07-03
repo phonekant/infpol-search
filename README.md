@@ -10,10 +10,11 @@ cd <your-repo>
 npm install
 ```
 
-Create a `.env.local` file in the project root with your database connection string:
+Create a `.env.local` file in the project root with your Turso database credentials:
 
 ```
-DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+TURSO_DATABASE_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=your-auth-token
 ```
 
 Then start it:
@@ -38,6 +39,7 @@ whichever year you want. Once a year is finished, load it into the database:
 
 ```
 cd ../db
-export DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
-python3 migrate_sqlite_to_pg.py --sqlite ../scraper/infpol_2024.db
+export TURSO_DATABASE_URL=libsql://your-db.turso.io
+export TURSO_AUTH_TOKEN=your-auth-token
+node migrate_sqlite_to_turso.mjs --sqlite ../scraper/infpol_2024.db
 ```

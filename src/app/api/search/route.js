@@ -1,14 +1,15 @@
-import { neon } from "@neondatabase/serverless";
+import { createClient } from "@libsql/client";
 
 const PAGE_SIZE = 20;
 
-// Turn free-text user input into a Postgres tsquery with prefix matching on
-// every word (so "эколог" also matches "экология", "экологический", etc,
-// mirroring how the original SQLite FTS prefix search behaved).
-function toPrefixTsQuery(raw) {
+// Turn free-text user input into an FTS5 query with prefix matching on
+// every word (so "эколог" also matches "экология", "экологический", etc).
+// Each word is double-quoted to avoid FTS5 syntax characters, with a
+// trailing * for prefix matching. Bare tokens are ANDed by default in FTS5.
+function toPrefixFtsQuery(raw) {
   const words = (raw.match(/[\p{L}\p{N}]+/gu) || []).filter(Boolean);
   if (words.length === 0) return null;
-  return words.map((w) => `${w}:*`).join(" & ");
+  return words.map((w) => `"${w.replace(/"/g, '""')}"*`).join(" ");
 }
 
 export async function GET(request) {
@@ -16,38 +17,52 @@ export async function GET(request) {
   const q = (searchParams.get("q") || "").trim();
   const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
 
-  const tsq = q ? toPrefixTsQuery(q) : null;
-  if (!tsq) {
+  const ftsQuery = q ? toPrefixFtsQuery(q) : null;
+  if (!ftsQuery) {
     return Response.json({ total: 0, page, totalPages: 0, results: [] });
   }
 
   const offset = (page - 1) * PAGE_SIZE;
 
   try {
-    if (!process.env.DATABASE_URL) {
+    if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) {
       throw new Error(
-        "DATABASE_URL is not set in this environment (check Vercel Project Settings > Environment Variables)"
+        "TURSO_DATABASE_URL / TURSO_AUTH_TOKEN not set in this environment (check Vercel Project Settings > Environment Variables)"
       );
     }
-    const sql = neon(process.env.DATABASE_URL);
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
 
-    const countRows = await sql`
-      SELECT COUNT(*)::int AS total
-      FROM articles
-      WHERE search_tsv @@ to_tsquery('russian', ${tsq})
-    `;
-    const total = countRows[0]?.total || 0;
+    const countRes = await client.execute({
+      sql: `SELECT count(*) AS total FROM articles_fts WHERE articles_fts MATCH ?`,
+      args: [ftsQuery],
+    });
+    const total = Number(countRes.rows[0]?.total || 0);
 
-    const results = await sql`
-      SELECT
-        id, url, title, snippet, tags,
-        to_char(published, 'YYYY-MM-DD') AS date,
-        ts_rank(search_tsv, to_tsquery('russian', ${tsq})) AS rank
-      FROM articles
-      WHERE search_tsv @@ to_tsquery('russian', ${tsq})
-      ORDER BY rank DESC
-      LIMIT ${PAGE_SIZE} OFFSET ${offset}
-    `;
+    const resultsRes = await client.execute({
+      sql: `
+        SELECT
+          a.id, a.url, a.title, a.snippet, a.tags, a.published AS date,
+          bm25(articles_fts, 10.0, 3.0, 1.0) AS rank
+        FROM articles_fts
+        JOIN articles a ON a.id = articles_fts.rowid
+        WHERE articles_fts MATCH ?
+        ORDER BY rank
+        LIMIT ? OFFSET ?
+      `,
+      args: [ftsQuery, PAGE_SIZE, offset],
+    });
+
+    const results = resultsRes.rows.map((r) => ({
+      id: r.id,
+      url: r.url,
+      title: r.title,
+      snippet: r.snippet,
+      tags: r.tags ? String(r.tags).split(",").filter(Boolean) : [],
+      date: r.date,
+    }));
 
     return Response.json({
       total,
