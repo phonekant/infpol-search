@@ -1,6 +1,13 @@
 import { createClient } from "@libsql/client";
 
 const PAGE_SIZE = 20;
+// Ranking every match by bm25() before sorting gets very slow for common
+// words/prefixes that match thousands of articles (SQLite FTS5 has to score
+// every match before it can pick the top page). So we only rank the most
+// recent CANDIDATE_LIMIT matches (by rowid, which tracks article id / recency)
+// instead of the entire match set. This keeps common-word searches fast, at
+// the cost of not ranking the very oldest matches for extremely broad terms.
+const CANDIDATE_LIMIT = 2000;
 
 // Turn free-text user input into an FTS5 query with prefix matching on
 // every word (so "эколог" also matches "экология", "экологический", etc).
@@ -43,16 +50,19 @@ export async function GET(request) {
 
     const resultsRes = await client.execute({
       sql: `
-        SELECT
-          a.id, a.url, a.title, a.snippet, a.tags, a.published AS date,
-          bm25(articles_fts, 10.0, 3.0, 1.0) AS rank
-        FROM articles_fts
-        JOIN articles a ON a.id = articles_fts.rowid
-        WHERE articles_fts MATCH ?
-        ORDER BY rank
+        SELECT a.id, a.url, a.title, a.snippet, a.tags, a.published AS date, c.rank
+        FROM (
+          SELECT rowid, bm25(articles_fts, 10.0, 3.0, 1.0) AS rank
+          FROM articles_fts
+          WHERE articles_fts MATCH ?
+          ORDER BY rowid DESC
+          LIMIT ?
+        ) c
+        JOIN articles a ON a.id = c.rowid
+        ORDER BY c.rank
         LIMIT ? OFFSET ?
       `,
-      args: [ftsQuery, PAGE_SIZE, offset],
+      args: [ftsQuery, CANDIDATE_LIMIT, PAGE_SIZE, offset],
     });
 
     const results = resultsRes.rows.map((r) => ({
@@ -64,10 +74,15 @@ export async function GET(request) {
       date: r.date,
     }));
 
+    // Pagination is bounded by how many matches we actually rank, not the
+    // full (possibly huge) match count, so users can't page past what's
+    // servable.
+    const rankedTotal = Math.min(total, CANDIDATE_LIMIT);
+
     return Response.json({
       total,
       page,
-      totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+      totalPages: Math.max(1, Math.ceil(rankedTotal / PAGE_SIZE)),
       results,
     });
   } catch (err) {
