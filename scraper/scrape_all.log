@@ -1,0 +1,15 @@
+=== [23:05:20] Scraping 2000 ===
+--- 2000 not finished yet, re-running ---
+--- 2000 not finished yet, re-running ---
+--- 2000 not finished yet, re-running ---
+--- 2000 not finished yet, re-running ---
+--- 2000 not finished yet, re-running ---
+--- 2000 not finished yet, re-running ---
+=== [23:09:14] 2000 done scraping, loading into Postgres ===
+Traceback (most recent call last):
+  File "/Users/phonekant/Documents/Projects/infpol-site/scraper/../db/migrate_sqlite_to_pg.py", line 16, in <module>
+    import psycopg
+ModuleNotFoundError: No module named 'psycopg'
+=== [23:09:14] Scraping 2001 ===
+--- 2001 not finished yet, re-running ---
+--- 2001 not finished yet, re-running ---

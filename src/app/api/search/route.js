@@ -21,10 +21,16 @@ export async function GET(request) {
     return Response.json({ total: 0, page, totalPages: 0, results: [] });
   }
 
-  const sql = neon(process.env.DATABASE_URL);
   const offset = (page - 1) * PAGE_SIZE;
 
   try {
+    if (!process.env.DATABASE_URL) {
+      throw new Error(
+        "DATABASE_URL is not set in this environment (check Vercel Project Settings > Environment Variables)"
+      );
+    }
+    const sql = neon(process.env.DATABASE_URL);
+
     const countRows = await sql`
       SELECT COUNT(*)::int AS total
       FROM articles
