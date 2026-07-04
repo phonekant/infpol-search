@@ -123,6 +123,20 @@ export function buildResultsQuery(parsed, columnsSql) {
 
 export function buildCountQuery(parsed) {
   const { ftsQuery, tags, tagFilterSql, yearFilterSql, hasYearFilter, effectiveYearFrom, effectiveYearTo } = parsed;
+
+  // Joining every matched row to the articles table just to count them is
+  // what made common-word searches slow (SQLite/Turso has to materialize
+  // and touch every match through the join instead of using the FTS5
+  // index's own count). Skip the join entirely when there's no tag/year
+  // filter that actually needs a column from `a` — this is the common
+  // case for every plain search.
+  if (tags.length === 0 && !hasYearFilter) {
+    return {
+      sql: `SELECT count(*) AS total FROM articles_fts WHERE articles_fts MATCH ?`,
+      args: [ftsQuery],
+    };
+  }
+
   return {
     sql: `
       SELECT count(*) AS total

@@ -281,7 +281,32 @@ export default function Home() {
           </p>
         )}
 
-        <div className="flex flex-col gap-4">
+        {totalPages > 1 && (
+          <div className="flex gap-4 justify-center mb-4">
+            {page > 1 && (
+              <button
+                onClick={() => setPage((p) => p - 1)}
+                className="px-3 py-1 rounded border border-neutral-400/40 hover:bg-white/5"
+              >
+                ← Previous
+              </button>
+            )}
+            {page < totalPages && (
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                className="px-3 py-1 rounded border border-neutral-400/40 hover:bg-white/5"
+              >
+                Next →
+              </button>
+            )}
+          </div>
+        )}
+
+        <div
+          className={`flex flex-col gap-4 transition-opacity duration-150 ${
+            loading ? "opacity-0" : "opacity-100"
+          }`}
+        >
           {results.map((a) => (
             <a
               key={a.id}
@@ -320,6 +345,10 @@ export default function Home() {
             )}
           </div>
         )}
+
+        <footer className="mt-16 mb-4 text-center text-base text-neutral-500">
+          © Made by Phone Kant with &lt;3
+        </footer>
       </div>
     </div>
   );
