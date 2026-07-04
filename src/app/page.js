@@ -1,48 +1,85 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 2000 + 1 }, (_, i) => CURRENT_YEAR - i);
 
 export default function Home() {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState("relevance");
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const debounceRef = useRef(null);
+  const resultsTopRef = useRef(null);
+  const filterKeyRef = useRef("");
 
+  // Only the raw typing is debounced. Sort/filter/page changes fetch
+  // immediately below — piling them onto the same timer is what made
+  // pagination feel laggy (a flat 300ms delay on every click).
   useEffect(() => {
-    setPage(1);
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
   }, [query]);
 
+  const tagsKey = selectedTags.join(",");
+
   useEffect(() => {
-    if (!query.trim()) {
+    if (!debouncedQuery.trim()) {
       setData(null);
       return;
     }
+
+    // If the search itself, sort, or filters changed (not just the page),
+    // jump back to page 1 rather than staying on whatever page the user
+    // was previously viewing.
+    const filterKey = JSON.stringify([debouncedQuery, sortBy, tagsKey, yearFrom, yearTo]);
+    const filtersChanged = filterKey !== filterKeyRef.current;
+    filterKeyRef.current = filterKey;
+    const effectivePage = filtersChanged ? 1 : page;
+    if (filtersChanged && page !== 1) setPage(1);
+
     setLoading(true);
     setError(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetch(`/api/search?q=${encodeURIComponent(query)}&page=${page}`)
-        .then((r) => r.json())
-        .then((json) => {
-          if (json.error) throw new Error(json.error);
-          setData(json);
-        })
-        .catch((e) => setError(String(e)))
-        .finally(() => setLoading(false));
-    }, 300);
-    return () => clearTimeout(debounceRef.current);
-  }, [query, page]);
+    const params = new URLSearchParams({
+      q: debouncedQuery,
+      page: String(effectivePage),
+      sort: sortBy,
+    });
+    if (selectedTags.length) params.set("tags", tagsKey);
+    if (yearFrom) params.set("yearFrom", yearFrom);
+    if (yearTo) params.set("yearTo", yearTo);
+
+    fetch(`/api/search?${params.toString()}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.error) throw new Error(json.error);
+        setData(json);
+        resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, page, sortBy, tagsKey, yearFrom, yearTo]);
 
   const results = data?.results || [];
   const total = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 0;
+  const facetTags = useMemo(() => data?.facets?.tags || [], [data]);
+
+  function toggleTag(tag) {
+    setSelectedTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
+  }
 
   return (
     <div className="flex-1 w-full">
       <div className="max-w-3xl mx-auto p-8">
-        <div className="mb-6">
+        <div className="mb-6" ref={resultsTopRef}>
           <h1 className="text-lg font-semibold leading-relaxed">
             Info Polis Archive Search
           </h1>
@@ -51,7 +88,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-neutral-400/30 bg-white/[0.03] focus-within:border-blue-500/60 mb-6">
+        <div className="rounded-lg border border-neutral-400/30 bg-white/[0.03] focus-within:border-blue-500/60 mb-4">
           <textarea
             rows={1}
             value={query}
@@ -60,6 +97,83 @@ export default function Home() {
             className="w-full h-full bg-transparent outline-none resize-none p-4 text-lg leading-relaxed text-gray-100 caret-blue-400 placeholder:text-neutral-400"
           />
         </div>
+
+        <div className="flex flex-wrap items-center gap-3 mb-4 text-base">
+          <label className="flex items-center gap-2 text-neutral-400">
+            Sort:
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="bg-[#191919] border border-neutral-400/30 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-blue-500/60"
+            >
+              <option value="relevance">Relevance</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-neutral-400">
+            From:
+            <select
+              value={yearFrom}
+              onChange={(e) => setYearFrom(e.target.value)}
+              className="bg-[#191919] border border-neutral-400/30 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-blue-500/60"
+            >
+              <option value="">Any</option>
+              {YEARS.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-neutral-400">
+            To:
+            <select
+              value={yearTo}
+              onChange={(e) => setYearTo(e.target.value)}
+              className="bg-[#191919] border border-neutral-400/30 rounded px-2 py-1 text-gray-100 focus:outline-none focus:border-blue-500/60"
+            >
+              <option value="">Any</option>
+              {YEARS.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedTags.length > 0 && (
+            <button
+              onClick={() => setSelectedTags([])}
+              className="text-neutral-400 hover:text-gray-100 underline underline-offset-2"
+            >
+              Clear tags
+            </button>
+          )}
+        </div>
+
+        {facetTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {facetTags.map(({ tag, count }) => {
+              const active = selectedTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`px-2 py-1 rounded-full text-base border ${
+                    active
+                      ? "border-blue-500/70 bg-blue-500/10 text-blue-300"
+                      : "border-neutral-400/30 text-neutral-400 hover:border-blue-500/40 hover:text-gray-100"
+                  }`}
+                >
+                  {tag} <span className="opacity-60">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {query && loading && (
           <p className="text-lg leading-relaxed text-neutral-400 mb-4">Searching…</p>
