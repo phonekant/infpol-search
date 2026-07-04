@@ -8,14 +8,17 @@
     "start": "next start"
   },
   "dependencies": {
+    "@tursodatabase/serverless": "^1.2.3",
+    "dejavu-fonts-ttf": "^2.37.3",
     "next": "^14.2.5",
+    "pdfkit": "^0.19.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@tursodatabase/serverless": "^1.2.3"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@libsql/client": "^0.14.0",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "@libsql/client": "^0.14.0"
+    "tailwindcss": "^4"
   }
 }

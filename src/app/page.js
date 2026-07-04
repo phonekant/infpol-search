@@ -16,8 +16,12 @@ export default function Home() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
   const resultsTopRef = useRef(null);
   const filterKeyRef = useRef("");
+  const exportRef = useRef(null);
 
   // Only the raw typing is debounced. Sort/filter/page changes fetch
   // immediately below — piling them onto the same timer is what made
@@ -74,6 +78,51 @@ export default function Home() {
 
   function toggleTag(tag) {
     setSelectedTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
+  }
+
+  // Close the export dropdown when clicking outside it.
+  useEffect(() => {
+    if (!exportOpen) return;
+    function onClick(e) {
+      if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [exportOpen]);
+
+  async function handleExport(format) {
+    setExportOpen(false);
+    setExporting(true);
+    setExportError(null);
+    try {
+      const params = new URLSearchParams({ q: debouncedQuery, sort: sortBy, format });
+      if (selectedTags.length) params.set("tags", tagsKey);
+      if (yearFrom) params.set("yearFrom", yearFrom);
+      if (yearTo) params.set("yearTo", yearTo);
+
+      const res = await fetch(`/api/export?${params.toString()}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || `Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `infpol-export.${format}`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportError(String(e));
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -184,10 +233,46 @@ export default function Home() {
         )}
 
         {query && !loading && !error && data && (
-          <p className="text-lg leading-relaxed text-neutral-400 mb-4">
-            Found: {total}
-            {totalPages > 1 ? ` (page ${page} of ${totalPages})` : ""}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p className="text-lg leading-relaxed text-neutral-400">
+              Found: {total}
+              {totalPages > 1 ? ` (page ${page} of ${totalPages})` : ""}
+            </p>
+
+            {total > 0 && (
+              <div className="relative" ref={exportRef}>
+                <button
+                  onClick={() => setExportOpen((o) => !o)}
+                  disabled={exporting}
+                  className="px-3 py-1 rounded border border-neutral-400/40 hover:bg-white/5 text-base disabled:opacity-50"
+                >
+                  {exporting ? "Exporting…" : "Export as ▾"}
+                </button>
+                {exportOpen && (
+                  <div className="absolute right-0 mt-1 w-36 rounded border border-neutral-400/30 bg-[#191919] shadow-lg z-10">
+                    {[
+                      { format: "csv", label: "CSV" },
+                      { format: "tsv", label: "TSV" },
+                      { format: "xlsx", label: "Excel (.xlsx)" },
+                      { format: "pdf", label: "PDF" },
+                    ].map(({ format, label }) => (
+                      <button
+                        key={format}
+                        onClick={() => handleExport(format)}
+                        className="block w-full text-left px-3 py-2 text-base hover:bg-white/5"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {exportError && (
+          <p className="text-base leading-relaxed text-red-400 mb-4">{exportError}</p>
         )}
 
         {query && !loading && !error && data && total === 0 && (
