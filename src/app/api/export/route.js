@@ -40,14 +40,26 @@ function toDelimited(rows, delimiter) {
   return "﻿" + lines.join("\r\n");
 }
 
+// Excel's own hard limit is 32767 characters per cell; a handful of the
+// longest archive articles exceed that, which would otherwise crash
+// XLSX.utils.json_to_sheet entirely. Truncate just for this format — CSV,
+// TSV, and PDF exports still carry the complete, untruncated body.
+const XLSX_MAX_CELL = 32000;
+
 function toXlsxBuffer(rows) {
-  const sheetRows = rows.map((r) => ({
-    Title: r.title,
-    Date: r.date,
-    Tags: r.tags,
-    URL: r.url,
-    "Full text": r.body,
-  }));
+  const sheetRows = rows.map((r) => {
+    const body =
+      r.body && r.body.length > XLSX_MAX_CELL
+        ? r.body.slice(0, XLSX_MAX_CELL) + "… [truncated — use CSV, TSV, or PDF export for the full text]"
+        : r.body;
+    return {
+      Title: r.title,
+      Date: r.date,
+      Tags: r.tags,
+      URL: r.url,
+      "Full text": body,
+    };
+  });
   const ws = XLSX.utils.json_to_sheet(sheetRows);
   ws["!cols"] = [{ wch: 40 }, { wch: 12 }, { wch: 30 }, { wch: 40 }, { wch: 80 }];
   const wb = XLSX.utils.book_new();
@@ -134,8 +146,19 @@ export async function GET(request) {
       body: r.body || "",
     }));
 
-    const safeQuery = q.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40) || "search";
-    const filename = `infpol-export-${safeQuery}.${FORMATS[format].ext}`;
+    // HTTP header values must be Latin-1/ByteString — a Cyrillic query (the
+    // normal case here, since all article content is Russian) would throw
+    // when set directly as the filename. Keep an ASCII-only fallback name
+    // for the plain `filename=` param, and carry the real, human-readable
+    // name via the RFC 5987 `filename*=UTF-8''...` param that every modern
+    // browser already prefers.
+    const asciiQuery =
+      q
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "search";
+    const asciiFilename = `infpol-export-${asciiQuery}.${FORMATS[format].ext}`;
+    const utf8Filename = `infpol-export-${(q.trim() || "search")}.${FORMATS[format].ext}`;
 
     let body;
     if (format === "csv") body = toDelimited(rows, ",");
@@ -146,7 +169,7 @@ export async function GET(request) {
     return new Response(body, {
       headers: {
         "Content-Type": FORMATS[format].mime,
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(utf8Filename)}`,
       },
     });
   } catch (err) {

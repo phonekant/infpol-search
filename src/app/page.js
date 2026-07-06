@@ -64,7 +64,12 @@ export default function Home() {
       .then((json) => {
         if (json.error) throw new Error(json.error);
         setData(json);
-        resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Only snap the page back to the header for a genuinely new search/
+        // filter change. Paging through results (Previous/Next) should leave
+        // the scroll position exactly where it was.
+        if (filtersChanged) {
+          resultsTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
