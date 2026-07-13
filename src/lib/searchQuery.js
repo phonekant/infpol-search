@@ -31,6 +31,13 @@ function parseYear(raw, fallback) {
 // separate so callers can assemble the full args array themselves).
 export function parseSearchRequest(searchParams) {
   const q = (searchParams.get("q") || "").trim();
+  // Which language's text actually gets matched against, not just displayed.
+  // "en" searches title_en/snippet_en/body_en via a separate FTS index built
+  // over the translated columns; "ru" (default) searches the original
+  // Russian columns. Each language has its own index because a single FTS5
+  // table can't usefully rank/tokenize two languages' text as one field.
+  const lang = searchParams.get("lang") === "en" ? "en" : "ru";
+  const ftsTable = lang === "en" ? "articles_fts_en" : "articles_fts";
   const sort = ["relevance", "newest", "oldest"].includes(searchParams.get("sort"))
     ? searchParams.get("sort")
     : "relevance";
@@ -67,6 +74,8 @@ export function parseSearchRequest(searchParams) {
   return {
     q,
     ftsQuery,
+    lang,
+    ftsTable,
     sort,
     tags,
     hasYearFilter,
@@ -85,8 +94,8 @@ export function parseSearchRequest(searchParams) {
 // request and which columns to select. Returns { sql, args } where args
 // still needs LIMIT (and OFFSET, if paginating) appended by the caller.
 export function buildResultsQuery(parsed, columnsSql) {
-  const { ftsQuery, sort, tags, useBounding, boundDirection, orderExpr, tagFilterSql, yearFilterSql, effectiveYearFrom, effectiveYearTo } = parsed;
-  const rankSelect = sort === "relevance" ? ", bm25(articles_fts, 10.0, 3.0, 1.0) AS rank" : "";
+  const { ftsQuery, ftsTable, sort, tags, useBounding, boundDirection, orderExpr, tagFilterSql, yearFilterSql, effectiveYearFrom, effectiveYearTo } = parsed;
+  const rankSelect = sort === "relevance" ? `, bm25(${ftsTable}, 10.0, 3.0, 1.0) AS rank` : "";
 
   if (useBounding) {
     return {
@@ -94,8 +103,8 @@ export function buildResultsQuery(parsed, columnsSql) {
         SELECT ${columnsSql}${sort === "relevance" ? ", c.rank" : ""}
         FROM (
           SELECT rowid${rankSelect}
-          FROM articles_fts
-          WHERE articles_fts MATCH ?
+          FROM ${ftsTable}
+          WHERE ${ftsTable} MATCH ?
           ORDER BY rowid ${boundDirection}
           LIMIT ?
         ) c
@@ -110,9 +119,9 @@ export function buildResultsQuery(parsed, columnsSql) {
   return {
     sql: `
       SELECT ${columnsSql}${rankSelect}
-      FROM articles_fts
-      JOIN articles a ON a.id = articles_fts.rowid
-      WHERE articles_fts MATCH ?
+      FROM ${ftsTable}
+      JOIN articles a ON a.id = ${ftsTable}.rowid
+      WHERE ${ftsTable} MATCH ?
       ${tagFilterSql}
       ${yearFilterSql}
       ORDER BY ${orderExpr}
@@ -122,7 +131,7 @@ export function buildResultsQuery(parsed, columnsSql) {
 }
 
 export function buildCountQuery(parsed) {
-  const { ftsQuery, tags, tagFilterSql, yearFilterSql, hasYearFilter, effectiveYearFrom, effectiveYearTo } = parsed;
+  const { ftsQuery, ftsTable, tags, tagFilterSql, yearFilterSql, hasYearFilter, effectiveYearFrom, effectiveYearTo } = parsed;
 
   // Joining every matched row to the articles table just to count them is
   // what made common-word searches slow (SQLite/Turso has to materialize
@@ -132,7 +141,7 @@ export function buildCountQuery(parsed) {
   // case for every plain search.
   if (tags.length === 0 && !hasYearFilter) {
     return {
-      sql: `SELECT count(*) AS total FROM articles_fts WHERE articles_fts MATCH ?`,
+      sql: `SELECT count(*) AS total FROM ${ftsTable} WHERE ${ftsTable} MATCH ?`,
       args: [ftsQuery],
     };
   }
@@ -140,9 +149,9 @@ export function buildCountQuery(parsed) {
   return {
     sql: `
       SELECT count(*) AS total
-      FROM articles_fts
-      JOIN articles a ON a.id = articles_fts.rowid
-      WHERE articles_fts MATCH ?
+      FROM ${ftsTable}
+      JOIN articles a ON a.id = ${ftsTable}.rowid
+      WHERE ${ftsTable} MATCH ?
       ${tagFilterSql}
       ${yearFilterSql}
     `,

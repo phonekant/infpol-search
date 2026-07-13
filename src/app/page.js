@@ -40,10 +40,12 @@ export default function Home() {
       return;
     }
 
-    // If the search itself, sort, or filters changed (not just the page),
-    // jump back to page 1 rather than staying on whatever page the user
-    // was previously viewing.
-    const filterKey = JSON.stringify([debouncedQuery, sortBy, tagsKey, yearFrom, yearTo]);
+    // If the search itself, sort, filters, or language changed (not just the
+    // page), jump back to page 1 rather than staying on whatever page the
+    // user was previously viewing. Language is included here because it
+    // changes which FTS index gets searched, not just how results render —
+    // switching EN/RU is effectively a different search.
+    const filterKey = JSON.stringify([debouncedQuery, sortBy, tagsKey, yearFrom, yearTo, lang]);
     const filtersChanged = filterKey !== filterKeyRef.current;
     filterKeyRef.current = filterKey;
     const effectivePage = filtersChanged ? 1 : page;
@@ -55,6 +57,7 @@ export default function Home() {
       q: debouncedQuery,
       page: String(effectivePage),
       sort: sortBy,
+      lang,
     });
     if (selectedTags.length) params.set("tags", tagsKey);
     if (yearFrom) params.set("yearFrom", yearFrom);
@@ -75,7 +78,7 @@ export default function Home() {
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery, page, sortBy, tagsKey, yearFrom, yearTo]);
+  }, [debouncedQuery, page, sortBy, tagsKey, yearFrom, yearTo, lang]);
 
   const results = data?.results || [];
   const total = data?.total ?? 0;

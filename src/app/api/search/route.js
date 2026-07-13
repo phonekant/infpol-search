@@ -15,7 +15,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
   const parsed = parseSearchRequest(searchParams);
-  const { ftsQuery, hasYearFilter, effectiveYearFrom, effectiveYearTo, useBounding, yearFilterSql } = parsed;
+  const { ftsQuery, ftsTable, hasYearFilter, effectiveYearFrom, effectiveYearTo, useBounding, yearFilterSql } = parsed;
 
   if (!ftsQuery) {
     return Response.json({ total: 0, page, totalPages: 0, results: [], facets: { tags: [] } });
@@ -77,16 +77,16 @@ export async function GET(request) {
       sql: hasYearFilter
         ? `
           SELECT a.tags
-          FROM articles_fts
-          JOIN articles a ON a.id = articles_fts.rowid
-          WHERE articles_fts MATCH ? ${yearFilterSql}
+          FROM ${ftsTable}
+          JOIN articles a ON a.id = ${ftsTable}.rowid
+          WHERE ${ftsTable} MATCH ? ${yearFilterSql}
           ORDER BY a.id DESC
           LIMIT ?
         `
         : `
           SELECT a.tags
           FROM (
-            SELECT rowid FROM articles_fts WHERE articles_fts MATCH ? ORDER BY rowid DESC LIMIT ?
+            SELECT rowid FROM ${ftsTable} WHERE ${ftsTable} MATCH ? ORDER BY rowid DESC LIMIT ?
           ) c
           JOIN articles a ON a.id = c.rowid
         `,
