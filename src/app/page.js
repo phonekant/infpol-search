@@ -19,6 +19,7 @@ export default function Home() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
+  const [lang, setLang] = useState("en");
   const resultsTopRef = useRef(null);
   const filterKeyRef = useRef("");
   const exportRef = useRef(null);
@@ -206,6 +207,23 @@ export default function Home() {
               Clear tags
             </button>
           )}
+
+          <div className="flex items-center gap-1 rounded border border-neutral-400/30 p-0.5 ml-auto">
+            {[
+              { code: "en", label: "EN" },
+              { code: "ru", label: "RU" },
+            ].map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => setLang(code)}
+                className={`px-2 py-0.5 rounded text-base ${
+                  lang === code ? "bg-blue-500/20 text-blue-300" : "text-neutral-400 hover:text-gray-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {facetTags.length > 0 && (
@@ -312,22 +330,30 @@ export default function Home() {
             loading ? "opacity-0" : "opacity-100"
           }`}
         >
-          {results.map((a) => (
-            <a
-              key={a.id}
-              href={a.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border border-neutral-400/20 p-4 hover:border-blue-500/50 hover:bg-white/[0.03]"
-            >
-              <div className="font-semibold">{a.title}</div>
-              <div className="text-neutral-400 text-base">
-                {a.date}
-                {a.tags && a.tags.length > 0 ? ` · ${a.tags.join(", ")}` : ""}
-              </div>
-              <div className="mt-1">{a.snippet}</div>
-            </a>
-          ))}
+          {results.map((a) => {
+            // Falls back to Russian when a row hasn't been translated yet
+            // (the archive backfill runs separately and isn't 100% done).
+            const title = lang === "en" ? a.titleEn || a.title : a.title;
+            const snippet = lang === "en" ? a.snippetEn || a.snippet : a.snippet;
+            const isFallback = lang === "en" && !a.titleEn;
+            return (
+              <a
+                key={a.id}
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-lg border border-neutral-400/20 p-4 hover:border-blue-500/50 hover:bg-white/[0.03]"
+              >
+                <div className="font-semibold">{title}</div>
+                <div className="text-neutral-400 text-base">
+                  {a.date}
+                  {a.tags && a.tags.length > 0 ? ` · ${a.tags.join(", ")}` : ""}
+                  {isFallback ? " · untranslated" : ""}
+                </div>
+                <div className="mt-1">{snippet}</div>
+              </a>
+            );
+          })}
         </div>
 
         {totalPages > 1 && (

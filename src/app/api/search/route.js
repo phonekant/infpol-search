@@ -38,7 +38,8 @@ export async function GET(request) {
     const countRes = await client.execute(countQuery);
     const total = Number(countRes.rows[0]?.total || 0);
 
-    const columnsSql = "a.id, a.url, a.title, a.snippet, a.tags, a.published AS date";
+    const columnsSql =
+      "a.id, a.url, a.title, a.snippet, a.title_en, a.snippet_en, a.tags, a.published AS date";
     const { sql, args } = buildResultsQuery(parsed, columnsSql);
     const resultsRes = await client.execute({
       sql: `${sql} LIMIT ? OFFSET ?`,
@@ -50,6 +51,10 @@ export async function GET(request) {
       url: r.url,
       title: r.title,
       snippet: r.snippet,
+      // Null until the translation backfill reaches this row — the UI falls
+      // back to Russian when these are missing.
+      titleEn: r.title_en,
+      snippetEn: r.snippet_en,
       tags: r.tags ? String(r.tags).split(",").filter(Boolean) : [],
       date: r.date,
     }));
